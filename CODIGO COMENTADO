@@ -1,0 +1,195 @@
+## ================== JUEGO DODGER EN ESP32 ==================
+## Título del programa: Juego Dodger con pantalla OLED y buzzer
+## Curso: Electrónica Digital II
+
+from machine import Pin, I2C, PWM   # Manejo de pines, I2C y PWM
+import framebuf                     # Manejo de gráficos
+import ssd1306                     # Driver pantalla OLED
+import utime                       # Manejo de tiempos
+import random                      # Números aleatorios
+
+## ---------------- CONFIGURACIÓN ----------------
+
+PIN_SDA = 21        # Pin SDA del bus I2C
+PIN_SCL = 22        # Pin SCL del bus I2C
+
+PIN_BTN_UP = 32     # Botón subir
+PIN_BTN_DOWN = 33   # Botón bajar
+PIN_BTN_START = 25  # Botón inicio / pausa
+
+PIN_BUZZ = 26       # Pin del buzzer
+
+OLED_W = 128        # Ancho pantalla OLED
+OLED_H = 64         # Alto pantalla OLED
+
+FPS = 30            # Cuadros por segundo
+FRAME_MS = int(1000 / FPS)  # Tiempo entre cuadros
+
+PLAYER_W = 8        # Ancho del jugador
+PLAYER_H = 8        # Alto del jugador
+PLAYER_X = 10       # Posición horizontal fija
+
+OB_W = 8            # Ancho del obstáculo
+OB_H = 10           # Alto del obstáculo
+
+MODES = ["CLÁSICO", "CONTRA-TIEMPO", "HARDCORE"]  # Modos de juego
+CONTRA_SECONDS = 60   # Tiempo del modo contra-tiempo
+
+## ---------------- HARDWARE ----------------
+
+i2c = I2C(0, scl=Pin(PIN_SCL), sda=Pin(PIN_SDA), freq=400000)  # Inicializa I2C
+oled = ssd1306.SSD1306_I2C(OLED_W, OLED_H, i2c)               # Inicializa OLED
+
+## Parche de funciones OLED si no existen en el driver
+
+if not hasattr(oled, "hline"):     # Si no existe hline
+    def hline(x, y, w, c):
+        for i in range(w):
+            oled.pixel(x + i, y, c)
+    oled.hline = hline
+
+if not hasattr(oled, "blit"):      # Si no existe blit
+    def blit(fb, x, y):
+        for j in range(fb.height):
+            for i in range(fb.width):
+                if fb.pixel(i, j):
+                    oled.pixel(x + i, y + j, 1)
+    oled.blit = blit
+
+## ---------------- BOTONES ----------------
+
+btn_up = Pin(PIN_BTN_UP, Pin.IN, Pin.PULL_UP)       # Botón arriba
+btn_down = Pin(PIN_BTN_DOWN, Pin.IN, Pin.PULL_UP)  # Botón abajo
+btn_start = Pin(PIN_BTN_START, Pin.IN, Pin.PULL_UP)# Botón start
+
+## ---------------- BUZZER ----------------
+
+buzzer = PWM(Pin(PIN_BUZZ))  # Inicializa PWM
+buzzer.duty(0)               # Apaga buzzer
+
+def buzzer_tone(freq, dur):
+    buzzer.freq(freq)        # Define frecuencia
+    buzzer.duty(400)         # Activa buzzer
+    utime.sleep_ms(dur)      # Mantiene el tono
+    buzzer.duty(0)           # Apaga buzzer
+
+## ---------------- SPRITE ----------------
+
+SPRITE = bytearray([         # Sprite del jugador (8x8)
+    0b00111100,
+    0b01111110,
+    0b11111111,
+    0b11011011,
+    0b11111111,
+    0b01111110,
+    0b00111100,
+    0b00011000
+])
+
+fb_player = framebuf.FrameBuffer(
+    SPRITE, PLAYER_W, PLAYER_H, framebuf.MONO_HMSB
+)  # Framebuffer del jugador
+
+## ---------------- ANTIRREBOTE ----------------
+
+class DebouncedButton:
+    def __init__(self, pin):
+        self.pin = pin             # Pin del botón
+        self.last = pin.value()    # Último estado
+        self.time = utime.ticks_ms()
+
+    def pressed(self):
+        state = self.pin.value()   # Lee pin
+        now = utime.ticks_ms()     # Tiempo actual
+
+        if state != self.last and utime.ticks_diff(now, self.time) > 40:
+            self.last = state
+            self.time = now
+            return state == 0      # Retorna verdadero si se presiona
+        return False
+
+btn_up_w = DebouncedButton(btn_up)       # Botón arriba con antirrebote
+btn_down_w = DebouncedButton(btn_down)   # Botón abajo con antirrebote
+btn_start_w = DebouncedButton(btn_start) # Botón start con antirrebote
+
+## ---------------- COLISION ----------------
+
+def aabb(ax, ay, aw, ah, bx, by, bw, bh):
+    return not (                 # Retorna True si hay colisión
+        ax + aw <= bx or
+        bx + bw <= ax or
+        ay + ah <= by or
+        by + bh <= ay
+    )
+
+## ---------------- CLASES ----------------
+
+class Player:
+    def __init__(self, y):
+        self.x = PLAYER_X          # Posición X
+        self.y = y                 # Posición Y
+
+    def up(self):
+        if self.y > 0:
+            self.y -= 8            # Sube jugador
+            buzzer_tone(1500, 30)  # Sonido
+
+    def down(self):
+        if self.y < OLED_H - PLAYER_H:
+            self.y += 8            # Baja jugador
+            buzzer_tone(1300, 30)  # Sonido
+
+    def draw(self):
+        oled.blit(fb_player, self.x, self.y)  # Dibuja jugador
+
+class Obstacle:
+    def __init__(self):
+        self.x = OLED_W
+        self.y = random.randint(0, OLED_H - OB_H)
+        self.speed = random.randint(2, 4)
+
+    def update(self):
+        self.x -= self.speed       # Mueve obstáculo
+
+    def draw(self):
+        for i in range(OB_H):
+            oled.hline(self.x, self.y + i, OB_W, 1)
+
+## ---------------- JUEGO ----------------
+
+player = Player(28)     # Crea jugador
+obstacles = []          # Lista de obstáculos
+score = 0               # Puntaje
+
+while True:
+    oled.fill(0)        # Limpia pantalla
+
+    if btn_up_w.pressed():
+        player.up()     # Mueve arriba
+
+    if btn_down_w.pressed():
+        player.down()   # Mueve abajo
+
+    if random.randint(0, 20) == 0:
+        obstacles.append(Obstacle())  # Crea obstáculo
+
+    for ob in list(obstacles):
+        ob.update()     # Actualiza obstáculo
+        ob.draw()       # Dibuja obstáculo
+
+        if ob.x < 0:
+            obstacles.remove(ob)
+            score += 1  # Aumenta puntaje
+
+        if aabb(player.x, player.y, PLAYER_W, PLAYER_H,
+                ob.x, ob.y, OB_W, OB_H):
+            oled.text("GAME OVER", 30, 30)  # Muestra mensaje
+            oled.show()
+            utime.sleep(2)
+            obstacles.clear()
+            score = 0
+
+    player.draw()       # Dibuja jugador
+    oled.text("P:" + str(score), 0, 0)  # Muestra puntaje
+    oled.show()         # Actualiza pantalla
+    utime.sleep_ms(FRAME_MS)  # Control de tiempo

@@ -1,0 +1,493 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{hyperref}
+\geometry{margin=2.5cm}
+
+\title{SEGUIMIENTO IV}
+\author{Sara Rondon, Natalia Ángel\\ Electrónica digital II}
+\date{}
+
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+\definecolor{mygreen}{rgb}{0,0.6,0}
+
+\lstset{
+    backgroundcolor=\color{codegray},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=single,
+    captionpos=b,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{mygreen},
+    stringstyle=\color{red},
+    showstringspaces=false
+}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Identificación del proyecto}
+\begin{itemize}
+    \item \textbf{Nombre del proyecto:} Juego Dodger en ESP32 con pantalla OLED
+    \item \textbf{Integrantes del equipo:} Sara Rondon, Natalia Ángel
+    \item \textbf{Asignatura:} Electrónica Digital II
+\end{itemize}
+
+\section{Resumen}
+El proyecto consiste en el desarrollo de un videojuego embebido tipo \textit{Dodger}, implementado sobre un microcontrolador ESP32 y una pantalla OLED SSD1306 de 128×64 píxeles, programado en MicroPython.
+
+El jugador controla un sprite con movimiento vertical cuyo objetivo es esquivar obstáculos que se desplazan horizontalmente por la pantalla. El sistema incluye una máquina de estados que gestiona los modos de menú, juego, pausa y finalización. Se implementan tres modos de dificultad (Clásico, Contra-tiempo y Hardcore), cada uno con parámetros diferenciados de velocidad y frecuencia de aparición de obstáculos.
+
+El proyecto integra comunicación I2C, manejo de GPIO, modulación PWM para retroalimentación sonora, temporización precisa y diseño de software orientado a objetos.
+
+\section{Descripción del hardware}
+
+El sistema está basado en el microcontrolador ESP32, encargado del procesamiento del juego, la lectura de entradas y el control de salidas visuales y sonoras.
+
+\textbf{Entradas}
+\begin{itemize}
+    \item Pulsador UP (GPIO 32): movimiento del jugador hacia arriba.
+    \item Pulsador DOWN (GPIO 33): movimiento del jugador hacia abajo.
+    \item Pulsador START/PAUSE (GPIO 25): inicio, pausa y reanudación del juego.
+\end{itemize}
+
+\textbf{Procesamiento}
+\begin{itemize}
+    \item Comunicación I2C para el control de la pantalla OLED.
+    \item Lógica de juego basada en máquina de estados.
+    \item Generación de obstáculos, detección de colisiones y cálculo de puntaje.
+\end{itemize}
+
+\textbf{Salidas}
+\begin{itemize}
+    \item Pantalla OLED SSD1306 (128×64 píxeles).
+    \item Buzzer pasivo controlado por PWM (GPIO 26).
+\end{itemize}
+
+El sistema es alimentado mediante el puerto USB del ESP32.
+
+
+\begin{figure}
+        \centering
+        \includegraphics[width=0.5\linewidth]{DIAGRAMA SEGUI4.png}
+        \caption{Diagrama de conexión del sistema}
+    \end{figure}
+       
+
+
+\section{Descripción del software}
+El software está desarrollado en MicroPython, utilizando los módulos \texttt{machine}, \texttt{ssd1306}, \texttt{framebuf}, \texttt{utime} y \texttt{random}.
+
+El programa implementa programación orientada a objetos para el manejo del jugador, los obstáculos y la dificultad del juego. Se utiliza una máquina de estados para separar claramente las diferentes fases del sistema: menú, juego, pausa y fin de partida.
+
+El renderizado gráfico se realiza mediante el framebuffer de la pantalla OLED y la temporización del sistema se controla mediante un bucle principal sincronizado a una frecuencia fija de actualización.
+
+
+\section{Estructura del código}
+El código se encuentra organizado en los siguientes bloques:
+
+\begin{itemize}
+    \item Configuración de pines y parámetros globales.
+    \item Inicialización del hardware (OLED, botones y buzzer).
+    \item Definición de sprites y framebuffers.
+    \item Clases para jugador, obstáculos y dificultad.
+    \item Máquina de estados del juego.
+    \item Bucle principal de ejecución.
+\end{itemize}
+
+
+\section{Explicación de funciones principales}
+\begin{itemize}
+    \item \texttt{buzzer\_tone():} Genera señales de audio mediante PWM como retroalimentación sonora.
+    \item \texttt{DebouncedButton.update():} Implementa antirrebote por software para los pulsadores.
+    \item \texttt{aabb():} Realiza la detección de colisiones mediante bounding boxes.
+    \item \texttt{Player.move\_up() / move\_down():} Controlan el desplazamiento vertical del jugador.
+    \item \texttt{Obstacle.update():} Actualiza la posición y velocidad de los obstáculos.
+    \item \texttt{Game.update():} Controla la lógica principal del juego y las condiciones de finalización.
+    \item \texttt{Game.draw():} Renderiza los elementos gráficos según el estado del sistema.
+\end{itemize}
+
+
+
+\section{Comunicación (si aplica)}
+La comunicación del sistema se realiza mediante el bus I2C, utilizado para el control de la pantalla OLED SSD1306. No se implementa comunicación serial, ya que toda la interacción con el usuario se realiza mediante pulsadores físicos.
+
+
+
+\section{Interfaz de usuario (si aplica)}
+La interfaz de usuario es gráfica y se despliega en la pantalla OLED. Incluye un menú de selección de modo de juego, un HUD durante la partida con puntaje, tiempo de supervivencia y obstáculos esquivados, además de pantallas de pausa y fin de juego.
+
+La interacción se realiza a través de tres pulsadores, proporcionando una experiencia sencilla e intuitiva.
+
+
+
+\section{Manejo de errores y seguridad}
+El sistema emplea bloques \texttt{try/except} para manejar interrupciones inesperadas, garantizando la desactivación del buzzer y la limpieza de la pantalla.
+
+El uso de antirrebote por software evita lecturas erróneas en los pulsadores, mejorando la estabilidad y robustez del sistema durante la ejecución.
+
+
+
+\section{Código fuente}
+\begin{lstlisting}
+from machine import Pin, I2C, PWM
+import framebuf
+import ssd1306
+import utime
+import random
+
+# ---------------- CONFIGURACIÓN ----------------
+PIN_SDA = 21
+PIN_SCL = 22
+PIN_BTN_UP = 32
+PIN_BTN_DOWN = 33
+PIN_BTN_START = 25
+PIN_BUZZ = 26  # buzzer pasivo
+
+OLED_W, OLED_H = 128, 64
+FPS = 30
+FRAME_MS = int(1000 / FPS)
+
+PLAYER_W, PLAYER_H = 8, 8
+PLAYER_X = 10
+OB_W, OB_H = 8, 10
+
+MODES = ["CLÁSICO", "CONTRA-TIEMPO", "HARDCORE"]
+CONTRA_SECONDS = 60  # duración del modo contra-tiempo
+
+# ---------------- HARDWARE ----------------
+i2c = I2C(0, scl=Pin(PIN_SCL), sda=Pin(PIN_SDA), freq=400000)
+oled = ssd1306.SSD1306_I2C(OLED_W, OLED_H, i2c, addr=0x3C)
+
+# Parche OLED
+if not hasattr(oled, "hline"):
+    def hline(x, y, w, color):
+        for i in range(w):
+            oled.pixel(x + i, y, color)
+    oled.hline = hline
+
+if not hasattr(oled, "vline"):
+    def vline(x, y, h, color):
+        for i in range(h):
+            oled.pixel(x, y + i, color)
+    oled.vline = vline
+
+if not hasattr(oled, "blit"):
+    def blit(fb, x0, y0):
+        try:
+            w = fb.width
+            h = fb.height
+        except AttributeError:
+            w = 8
+            h = 8
+        for iy in range(h):
+            for ix in range(w):
+                color = fb.pixel(ix, iy)
+                if color:
+                    oled.pixel(x0 + ix, y0 + iy, 1)
+    oled.blit = blit
+
+# ---------------- BOTONES ----------------
+btn_up = Pin(PIN_BTN_UP, Pin.IN, Pin.PULL_UP)
+btn_down = Pin(PIN_BTN_DOWN, Pin.IN, Pin.PULL_UP)
+btn_start = Pin(PIN_BTN_START, Pin.IN, Pin.PULL_UP)
+
+# ---------------- BUZZER ----------------
+buzzer_pwm = PWM(Pin(PIN_BUZZ))
+buzzer_pwm.duty(0)
+
+def buzzer_tone(freq, dur_ms, duty=512):
+    buzzer_pwm.freq(int(freq))
+    buzzer_pwm.duty(int(duty))
+    utime.sleep_ms(dur_ms)
+    buzzer_pwm.duty(0)
+
+def buzzer_async(freq, duty=400):
+    buzzer_pwm.freq(int(freq))
+    buzzer_pwm.duty(int(duty))
+
+def buzzer_stop():
+    buzzer_pwm.duty(0)
+
+# ---------------- SPRITE ----------------
+SPRITE = bytearray([
+    0b00111100,
+    0b01111110,
+    0b11111111,
+    0b11011011,
+    0b11111111,
+    0b01111110,
+    0b00111100,
+    0b00011000
+])
+fb_player = framebuf.FrameBuffer(SPRITE, PLAYER_W, PLAYER_H, framebuf.MONO_HMSB)
+
+# ---------------- BOTÓN DEBOUNCE ----------------
+class DebouncedButton:
+    def __init__(self, pin_obj, active_value=0, debounce_ms=40):
+        self.pin = pin_obj
+        self.active = active_value
+        self.debounce_ms = debounce_ms
+        self._last_state = self.pin.value()
+        self._last_time = utime.ticks_ms()
+        self._pressed_flag = False
+
+    def update(self):
+        v = self.pin.value()
+        now = utime.ticks_ms()
+        if v != self._last_state:
+            self._last_time = now
+            self._last_state = v
+        else:
+            if utime.ticks_diff(now, self._last_time) > self.debounce_ms:
+                if v == self.active and not self._pressed_flag:
+                    self._pressed_flag = True
+                    return True
+                if v != self.active and self._pressed_flag:
+                    self._pressed_flag = False
+        return False
+
+btn_up_w = DebouncedButton(btn_up)
+btn_down_w = DebouncedButton(btn_down)
+btn_start_w = DebouncedButton(btn_start)
+
+# ---------------- COLISION ----------------
+def aabb(ax, ay, aw, ah, bx, by, bw, bh):
+    return not (ax+aw <= bx or bx+bw <= ax or ay+ah <= by or by+bh <= ay)
+
+# ---------------- CLASES ----------------
+class Player:
+    def __init__(self, y):
+        self.x = PLAYER_X
+        self.y = y
+        self.w = PLAYER_W
+        self.h = PLAYER_H
+
+    def move_up(self):
+        if self.y > 0:
+            self.y -= 8
+            buzzer_tone(1500, 30, 400)
+
+    def move_down(self):
+        if self.y + self.h < OLED_H:
+            self.y += 8
+            buzzer_tone(1400, 30, 400)
+
+    def draw(self, d):
+        d.blit(fb_player, int(self.x), int(self.y))
+
+class Obstacle:
+    def __init__(self, x, y, w=OB_W, h=OB_H, speed=2):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+        self.speed = speed
+
+    def update(self):
+        self.x -= self.speed
+        buzzer_async(900 + random.randint(-100, 100), 300)
+
+    def offscreen(self):
+        return (self.x + self.w) < 0
+
+    def draw(self, d):
+        for yy in range(self.h):
+            d.hline(int(self.x), int(self.y)+yy, int(self.w), 1)
+
+# ---------------- DIFICULTAD ----------------
+class Difficulty:
+    def __init__(self, mode):
+        self.mode = mode
+        self.reset()
+
+    def reset(self):
+        if self.mode == 0:
+            self.spawn_ms = 1200
+            self.base_speed = 1.2
+            self.min_spawn = 700
+            self.step_time = 6000
+            self.speed_limit = 3.0
+            self.label = "CLÁSICO"
+        elif self.mode == 1:
+            self.spawn_ms = 800
+            self.base_speed = 2.2
+            self.min_spawn = 400
+            self.step_time = 3000
+            self.speed_limit = 3.5
+            self.label = "CONTRA"
+        else:
+            self.spawn_ms = 400
+            self.base_speed = 4.0
+            self.min_spawn = 150
+            self.step_time = 1200
+            self.speed_limit = 6.5
+            self.label = "HARDCORE"
+        self.last_tick = utime.ticks_ms()
+
+    def escalate(self):
+        now = utime.ticks_ms()
+        if utime.ticks_diff(now, self.last_tick) > self.step_time:
+            if self.spawn_ms > self.min_spawn:
+                self.spawn_ms = max(self.min_spawn, self.spawn_ms - 30)
+            if self.base_speed < self.speed_limit:
+                self.base_speed += 0.1
+            self.last_tick = now
+
+# ---------------- ESTADOS ----------------
+STATE_MENU = 0
+STATE_GAME = 1
+STATE_GAMEOVER = 2
+STATE_PAUSE = 3  #  NUEVO
+
+class Game:
+    def __init__(self):
+        self.state = STATE_MENU
+        self.mode_idx = 0
+        self.player = Player((OLED_H - PLAYER_H)//2)
+        self.obstacles = []
+        self.last_spawn = utime.ticks_ms()
+        self.difficulty = Difficulty(self.mode_idx)
+        self.score = 0
+
+        #  NUEVAS MÉTRICAS
+        self.start_time = 0
+        self.survival_time = 0
+        self.obstacles_dodged = 0
+
+    def start(self):
+        self.state = STATE_GAME
+        self.player = Player((OLED_H - PLAYER_H)//2)
+        self.obstacles = []
+        self.score = 0
+        self.last_spawn = utime.ticks_ms()
+        self.start_time = utime.ticks_ms()
+        self.obstacles_dodged = 0
+        self.difficulty = Difficulty(self.mode_idx)
+        buzzer_tone(1200, 150, 512)
+
+    def game_over(self):
+        self.state = STATE_GAMEOVER
+        buzzer_tone(300, 400, 700)
+        buzzer_stop()
+
+    def spawn(self):
+        y = random.randint(0, OLED_H - OB_H)
+        x = OLED_W
+        speed = int(self.difficulty.base_speed + random.random()*1.8)
+        self.obstacles.append(Obstacle(x, y, OB_W, OB_H, speed))
+
+    def update(self):
+        if self.state != STATE_GAME:
+            return
+
+        self.survival_time = (utime.ticks_ms() - self.start_time)//1000
+
+        self.difficulty.escalate()
+
+        now = utime.ticks_ms()
+        if utime.ticks_diff(now, self.last_spawn) > self.difficulty.spawn_ms:
+            self.spawn()
+            self.last_spawn = now
+
+        for ob in list(self.obstacles):
+            ob.update()
+            if ob.offscreen():
+                self.obstacles.remove(ob)
+                self.score += 5
+                self.obstacles_dodged += 1  # ✅ NUEVO
+
+        for ob in self.obstacles:
+            if aabb(self.player.x, self.player.y, self.player.w, self.player.h,
+                    ob.x, ob.y, ob.w, ob.h):
+                self.game_over()
+                return
+
+        if self.mode_idx == 1:
+            elapsed = (utime.ticks_ms() - self.start_time) // 1000
+            if elapsed >= CONTRA_SECONDS:
+                self.game_over()
+
+    def draw(self, d):
+        d.fill(0)
+
+        if self.state == STATE_MENU:
+            d.text("DODGER", 36, 6, 1)
+            d.text("MODO:", 6, 24, 1)
+            d.text(MODES[self.mode_idx], 46, 24, 1)
+            d.text("START -> JUGAR", 18, 44, 1)
+
+        elif self.state == STATE_GAME:
+            d.text("S:"+str(self.score), 0, 0, 1)
+            d.text("O:"+str(self.obstacles_dodged), 40, 0, 1)  # 
+            d.text("T:"+str(self.survival_time), 90, 0, 1)     # 
+            d.hline(0, 10, OLED_W, 1)
+
+            self.player.draw(d)
+            for ob in self.obstacles:
+                ob.draw(d)
+
+        elif self.state == STATE_PAUSE:
+            d.text("PAUSA", 40, 20, 1)
+            d.text("S:"+str(self.score), 30, 40, 1)
+            d.text("START=CONT", 10, 55, 1)
+
+        elif self.state == STATE_GAMEOVER:
+            d.text("GAME OVER", 30, 10, 1)
+            d.text("P:"+str(self.score), 30, 25, 1)
+            d.text("T:"+str(self.survival_time), 30, 35, 1)
+            d.text("O:"+str(self.obstacles_dodged), 30, 45, 1)
+            d.text("START -> MENU", 5, 58, 1)
+
+        d.show()
+
+# ---------------- LOOP ----------------
+game = Game()
+
+try:
+    while True:
+        if btn_up_w.update():
+            if game.state == STATE_MENU:
+                game.mode_idx = (game.mode_idx - 1) % len(MODES)
+                buzzer_tone(1100, 40, 400)
+            elif game.state == STATE_GAME:
+                game.player.move_up()
+
+        if btn_down_w.update():
+            if game.state == STATE_MENU:
+                game.mode_idx = (game.mode_idx + 1) % len(MODES)
+                buzzer_tone(900, 40, 400)
+            elif game.state == STATE_GAME:
+                game.player.move_down()
+
+        if btn_start_w.update():
+            if game.state == STATE_MENU:
+                game.start()
+            elif game.state == STATE_GAME:
+                game.state = STATE_PAUSE  #  PAUSA
+            elif game.state == STATE_PAUSE:
+                game.state = STATE_GAME   #  REANUDA
+            elif game.state == STATE_GAMEOVER:
+                game.state = STATE_MENU
+
+        game.update()
+        game.draw(oled)
+        utime.sleep_ms(FRAME_MS)
+
+except KeyboardInterrupt:
+    buzzer_stop()
+    oled.fill(0)
+    oled.text("Fin del juego", 24, 28, 1)
+    oled.show()
+\end{lstlisting}
+
+\end{document}
+
